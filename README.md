@@ -2,6 +2,18 @@
 
 A comprehensive website for the Bramhollow Condominium Association (Est. 1985), providing residents and the community with important information and services.
 
+## Repository
+
+This project is backed up on GitHub at: https://github.com/shoes013/bramhollow-condo-association
+
+### Backup Instructions
+
+To backup your changes to GitHub:
+1. Make your changes to the website
+2. Run the backup script: `./git-backup.sh`
+3. Enter a brief description of your changes
+4. Your changes will be saved to GitHub
+
 ## Features
 
 - **Home Page**: Welcome page with community highlights and announcements
