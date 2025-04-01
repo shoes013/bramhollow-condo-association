@@ -80,6 +80,17 @@ export const newsletters = pgTable("newsletters", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  type: text("type").notNull(), // 'news', 'event', 'maintenance', 'document', etc.
+  read: boolean("read").default(false),
+  userId: integer("user_id").references(() => users.id),
+  relatedId: integer("related_id"), // ID of the related item (news ID, event ID, etc.)
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -125,6 +136,12 @@ export const insertNewsletterSchema = createInsertSchema(newsletters).omit({
   createdAt: true
 });
 
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
+  read: true,
+  createdAt: true
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -135,6 +152,7 @@ export type Photo = typeof photos.$inferSelect;
 export type MaintenanceRequest = typeof maintenanceRequests.$inferSelect;
 export type Contact = typeof contacts.$inferSelect;
 export type Newsletter = typeof newsletters.$inferSelect;
+export type Notification = typeof notifications.$inferSelect;
 
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
 export type InsertNews = z.infer<typeof insertNewsSchema>;
@@ -143,3 +161,4 @@ export type InsertPhoto = z.infer<typeof insertPhotoSchema>;
 export type InsertMaintenanceRequest = z.infer<typeof insertMaintenanceRequestSchema>;
 export type InsertContact = z.infer<typeof insertContactSchema>;
 export type InsertNewsletter = z.infer<typeof insertNewsletterSchema>;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;

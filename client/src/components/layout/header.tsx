@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
+import { NotificationDropdown } from "@/components/notifications/notification-dropdown";
 
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -62,14 +63,17 @@ const Header = () => {
             </Link>
             
             {user && (
-              <Button 
-                variant="ghost" 
-                onClick={handleLogout} 
-                className="text-gray-600 hover:text-primary"
-                disabled={logoutMutation.isPending}
-              >
-                Logout
-              </Button>
+              <>
+                <NotificationDropdown />
+                <Button 
+                  variant="ghost" 
+                  onClick={handleLogout} 
+                  className="text-gray-600 hover:text-primary"
+                  disabled={logoutMutation.isPending}
+                >
+                  Logout
+                </Button>
+              </>
             )}
           </nav>
           
@@ -138,17 +142,23 @@ const Header = () => {
               </Link>
               
               {user && (
-                <Button 
-                  variant="ghost" 
-                  onClick={() => {
-                    handleLogout();
-                    closeMobileMenu();
-                  }} 
-                  className="text-gray-600 justify-start p-0 hover:bg-transparent hover:text-primary"
-                  disabled={logoutMutation.isPending}
-                >
-                  Logout
-                </Button>
+                <>
+                  <div className="flex items-center">
+                    <NotificationDropdown />
+                    <span className="text-gray-600 ml-2">Notifications</span>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => {
+                      handleLogout();
+                      closeMobileMenu();
+                    }} 
+                    className="text-gray-600 justify-start p-0 hover:bg-transparent hover:text-primary"
+                    disabled={logoutMutation.isPending}
+                  >
+                    Logout
+                  </Button>
+                </>
               )}
             </div>
           </nav>

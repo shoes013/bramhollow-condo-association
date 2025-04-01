@@ -1,8 +1,9 @@
-import { users, documents, news, events, photos, maintenanceRequests, contacts, newsletters } from "@shared/schema";
+import { users, documents, news, events, photos, maintenanceRequests, contacts, newsletters, notifications } from "@shared/schema";
 import type { 
   User, InsertUser, Document, InsertDocument, News, InsertNews,
   Event, InsertEvent, Photo, InsertPhoto, MaintenanceRequest,
-  InsertMaintenanceRequest, Contact, InsertContact, Newsletter, InsertNewsletter 
+  InsertMaintenanceRequest, Contact, InsertContact, Newsletter, InsertNewsletter,
+  Notification, InsertNotification
 } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
@@ -49,6 +50,14 @@ export interface IStorage {
   // Newsletter methods
   subscribeNewsletter(email: string): Promise<Newsletter>;
   
+  // Notification methods
+  getNotifications(userId: number): Promise<Notification[]>;
+  getUnreadNotifications(userId: number): Promise<Notification[]>;
+  createNotification(notification: InsertNotification): Promise<Notification>;
+  markNotificationAsRead(id: number): Promise<Notification | undefined>;
+  markAllNotificationsAsRead(userId: number): Promise<number>;
+  deleteNotification(id: number): Promise<boolean>;
+  
   // Session store for auth
   sessionStore: session.SessionStore;
 }
@@ -62,6 +71,7 @@ export class MemStorage implements IStorage {
   private maintenanceRequests: Map<number, MaintenanceRequest>;
   private contacts: Map<number, Contact>;
   private newsletters: Map<number, Newsletter>;
+  private notificationsItems: Map<number, Notification>;
   private currentId: { [key: string]: number };
   
   sessionStore: session.SessionStore;
@@ -75,6 +85,7 @@ export class MemStorage implements IStorage {
     this.maintenanceRequests = new Map();
     this.contacts = new Map();
     this.newsletters = new Map();
+    this.notificationsItems = new Map();
     
     this.currentId = {
       users: 1,
@@ -84,7 +95,8 @@ export class MemStorage implements IStorage {
       photos: 1,
       maintenanceRequests: 1,
       contacts: 1,
-      newsletters: 1
+      newsletters: 1,
+      notifications: 1
     };
     
     this.sessionStore = new MemoryStore({
@@ -313,6 +325,74 @@ export class MemStorage implements IStorage {
     return newsletter;
   }
   
+  // Notification methods
+  async getNotifications(userId: number): Promise<Notification[]> {
+    return Array.from(this.notificationsItems.values())
+      .filter(notification => notification.userId === userId)
+      .sort((a, b) => {
+        // Sort by created date (newest first)
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return dateB - dateA;
+      });
+  }
+  
+  async getUnreadNotifications(userId: number): Promise<Notification[]> {
+    return Array.from(this.notificationsItems.values())
+      .filter(notification => notification.userId === userId && !notification.read)
+      .sort((a, b) => {
+        // Sort by created date (newest first)
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return dateB - dateA;
+      });
+  }
+  
+  async createNotification(insertNotification: InsertNotification): Promise<Notification> {
+    const id = this.currentId.notifications++;
+    const now = new Date();
+    const notification: Notification = {
+      ...insertNotification,
+      id,
+      read: false,
+      createdAt: now
+    };
+    this.notificationsItems.set(id, notification);
+    return notification;
+  }
+  
+  async markNotificationAsRead(id: number): Promise<Notification | undefined> {
+    const notification = this.notificationsItems.get(id);
+    if (!notification) return undefined;
+    
+    const updatedNotification: Notification = {
+      ...notification,
+      read: true
+    };
+    this.notificationsItems.set(id, updatedNotification);
+    return updatedNotification;
+  }
+  
+  async markAllNotificationsAsRead(userId: number): Promise<number> {
+    let count = 0;
+    const userNotifications = Array.from(this.notificationsItems.values())
+      .filter(notification => notification.userId === userId && !notification.read);
+      
+    for (const notification of userNotifications) {
+      this.notificationsItems.set(notification.id, {
+        ...notification,
+        read: true
+      });
+      count++;
+    }
+    
+    return count;
+  }
+  
+  async deleteNotification(id: number): Promise<boolean> {
+    return this.notificationsItems.delete(id);
+  }
+  
   // Seed data for development
   private async seedData() {
     // Seed documents
@@ -396,6 +476,31 @@ export class MemStorage implements IStorage {
       description: "Our newly renovated swimming pool",
       imageUrl: "https://images.unsplash.com/photo-1576013551627-0cc20b96c2a7?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=80",
       category: "Amenities",
+    });
+    
+    // Seed notifications
+    this.createNotification({
+      title: "New Document Added",
+      message: "The 'Rules and Regulations' document has been updated.",
+      type: "document",
+      userId: 1,
+      relatedId: 3
+    });
+    
+    this.createNotification({
+      title: "Upcoming Event",
+      message: "Don't forget about the Annual Community BBQ this weekend!",
+      type: "event",
+      userId: 1,
+      relatedId: 1
+    });
+    
+    this.createNotification({
+      title: "Maintenance Update",
+      message: "The pool renovation has been completed and is now open for use.",
+      type: "maintenance",
+      userId: 1,
+      relatedId: 0
     });
   }
 }
