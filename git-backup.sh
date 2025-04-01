@@ -17,7 +17,7 @@ fi
 # Commit changes
 git commit -m "$commit_message"
 
-# Push to GitHub
+# Push to GitHub using the GITHUB_TOKEN environment variable
 git push -u origin main
 
 echo "Successfully backed up to GitHub!"
