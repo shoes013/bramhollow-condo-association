@@ -8,6 +8,10 @@ import {
   insertNewsletterSchema, 
   insertMaintenanceRequestSchema,
   insertNotificationSchema,
+  insertAssessmentSchema,
+  insertAssessmentQuestionSchema,
+  insertUserAssessmentSchema,
+  insertBoardMemberRoleSchema,
   notifications 
 } from "@shared/schema";
 
@@ -269,6 +273,203 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       res.status(400).json({ message: "Invalid notification data" });
     }
+  });
+  
+  // Assessment routes (some routes admin-only)
+  app.get("/api/assessments", (req, res) => {
+    try {
+      const moduleType = req.query.type as string | undefined;
+      let assessments;
+      
+      if (moduleType) {
+        storage.getAssessmentsByType(moduleType)
+          .then(assessments => res.json(assessments))
+          .catch(() => res.status(500).json({ message: "Failed to fetch assessments" }));
+      } else {
+        storage.getAssessments()
+          .then(assessments => res.json(assessments))
+          .catch(() => res.status(500).json({ message: "Failed to fetch assessments" }));
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch assessments" });
+    }
+  });
+  
+  app.get("/api/assessments/:id", (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      storage.getAssessment(id)
+        .then(assessment => {
+          if (!assessment) {
+            return res.status(404).json({ message: "Assessment not found" });
+          }
+          res.json(assessment);
+        })
+        .catch(() => res.status(500).json({ message: "Failed to fetch assessment" }));
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch assessment" });
+    }
+  });
+  
+  app.post("/api/assessments", (req, res) => {
+    if (!req.isAuthenticated() || !req.user.isAdmin) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    try {
+      const assessmentData = insertAssessmentSchema.parse(req.body);
+      
+      storage.createAssessment(assessmentData)
+        .then(assessment => res.status(201).json(assessment))
+        .catch(() => res.status(500).json({ message: "Failed to create assessment" }));
+    } catch (error) {
+      res.status(400).json({ message: "Invalid assessment data" });
+    }
+  });
+  
+  app.get("/api/assessments/:id/questions", (req, res) => {
+    try {
+      const assessmentId = parseInt(req.params.id);
+      storage.getAssessmentQuestions(assessmentId)
+        .then(questions => res.json(questions))
+        .catch(() => res.status(500).json({ message: "Failed to fetch assessment questions" }));
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch assessment questions" });
+    }
+  });
+  
+  app.post("/api/assessments/:id/questions", (req, res) => {
+    if (!req.isAuthenticated() || !req.user.isAdmin) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    try {
+      const assessmentId = parseInt(req.params.id);
+      const questionData = insertAssessmentQuestionSchema.parse({
+        ...req.body,
+        assessmentId
+      });
+      
+      storage.createAssessmentQuestion(questionData)
+        .then(question => res.status(201).json(question))
+        .catch(() => res.status(500).json({ message: "Failed to create assessment question" }));
+    } catch (error) {
+      res.status(400).json({ message: "Invalid assessment question data" });
+    }
+  });
+  
+  // User assessments routes (protected by authentication)
+  app.get("/api/user-assessments", (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    storage.getUserAssessments(req.user.id)
+      .then(assessments => res.json(assessments))
+      .catch(() => res.status(500).json({ message: "Failed to fetch user assessments" }));
+  });
+  
+  app.get("/api/user-assessments/status/:status", (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    const status = req.params.status;
+    storage.getUserAssessmentsByStatus(req.user.id, status)
+      .then(assessments => res.json(assessments))
+      .catch(() => res.status(500).json({ message: "Failed to fetch user assessments" }));
+  });
+  
+  app.get("/api/user-assessments/expired", (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    storage.getExpiredAssessments(req.user.id)
+      .then(assessments => res.json(assessments))
+      .catch(() => res.status(500).json({ message: "Failed to fetch expired assessments" }));
+  });
+  
+  app.post("/api/user-assessments", (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    try {
+      const userAssessmentData = insertUserAssessmentSchema.parse({
+        ...req.body,
+        userId: req.user.id
+      });
+      
+      storage.createUserAssessment(userAssessmentData)
+        .then(userAssessment => res.status(201).json(userAssessment))
+        .catch(() => res.status(500).json({ message: "Failed to create user assessment" }));
+    } catch (error) {
+      res.status(400).json({ message: "Invalid user assessment data" });
+    }
+  });
+  
+  app.get("/api/user-qualification", (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    storage.isUserQualified(req.user.id)
+      .then(isQualified => res.json({ qualified: isQualified }))
+      .catch(() => res.status(500).json({ message: "Failed to check user qualification" }));
+  });
+  
+  // Board member roles routes
+  app.get("/api/board-members", (req, res) => {
+    try {
+      storage.getActiveBoardMembers()
+        .then(boardMembers => res.json(boardMembers))
+        .catch(() => res.status(500).json({ message: "Failed to fetch board members" }));
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch board members" });
+    }
+  });
+  
+  app.get("/api/board-members/user", (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    storage.getBoardMemberRolesByUser(req.user.id)
+      .then(roles => res.json(roles))
+      .catch(() => res.status(500).json({ message: "Failed to fetch board member roles" }));
+  });
+  
+  app.post("/api/board-members", (req, res) => {
+    if (!req.isAuthenticated() || !req.user.isAdmin) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    try {
+      const roleData = insertBoardMemberRoleSchema.parse(req.body);
+      
+      storage.createBoardMemberRole(roleData)
+        .then(role => res.status(201).json(role))
+        .catch(() => res.status(500).json({ message: "Failed to create board member role" }));
+    } catch (error) {
+      res.status(400).json({ message: "Invalid board member role data" });
+    }
+  });
+  
+  app.put("/api/board-members/:id/deactivate", (req, res) => {
+    if (!req.isAuthenticated() || !req.user.isAdmin) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    const id = parseInt(req.params.id);
+    storage.deactivateBoardMemberRole(id)
+      .then(role => {
+        if (!role) {
+          return res.status(404).json({ message: "Board member role not found" });
+        }
+        res.json(role);
+      })
+      .catch(() => res.status(500).json({ message: "Failed to deactivate board member role" }));
   });
 
   const httpServer = createServer(app);

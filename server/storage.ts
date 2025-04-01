@@ -1,9 +1,11 @@
-import { users, documents, news, events, photos, maintenanceRequests, contacts, newsletters, notifications } from "@shared/schema";
+import { users, documents, news, events, photos, maintenanceRequests, contacts, newsletters, notifications, assessments, assessmentQuestions, userAssessments, boardMemberRoles } from "@shared/schema";
 import type { 
   User, InsertUser, Document, InsertDocument, News, InsertNews,
   Event, InsertEvent, Photo, InsertPhoto, MaintenanceRequest,
   InsertMaintenanceRequest, Contact, InsertContact, Newsletter, InsertNewsletter,
-  Notification, InsertNotification
+  Notification, InsertNotification, Assessment, InsertAssessment, 
+  AssessmentQuestion, InsertAssessmentQuestion, UserAssessment, InsertUserAssessment,
+  BoardMemberRole, InsertBoardMemberRole
 } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
@@ -58,6 +60,33 @@ export interface IStorage {
   markAllNotificationsAsRead(userId: number): Promise<number>;
   deleteNotification(id: number): Promise<boolean>;
   
+  // Assessment methods
+  getAssessments(): Promise<Assessment[]>;
+  getAssessmentsByType(moduleType: string): Promise<Assessment[]>;
+  getAssessment(id: number): Promise<Assessment | undefined>;
+  createAssessment(assessment: InsertAssessment): Promise<Assessment>;
+  
+  // Assessment question methods
+  getAssessmentQuestions(assessmentId: number): Promise<AssessmentQuestion[]>;
+  getAssessmentQuestion(id: number): Promise<AssessmentQuestion | undefined>;
+  createAssessmentQuestion(question: InsertAssessmentQuestion): Promise<AssessmentQuestion>;
+  
+  // User assessment methods
+  getUserAssessments(userId: number): Promise<UserAssessment[]>;
+  getUserAssessmentsByStatus(userId: number, status: string): Promise<UserAssessment[]>;
+  getUserAssessment(id: number): Promise<UserAssessment | undefined>;
+  createUserAssessment(userAssessment: InsertUserAssessment): Promise<UserAssessment>;
+  isUserQualified(userId: number): Promise<boolean>;
+  getExpiredAssessments(userId: number): Promise<UserAssessment[]>;
+  
+  // Board member role methods
+  getBoardMemberRoles(): Promise<BoardMemberRole[]>;
+  getActiveBoardMembers(): Promise<BoardMemberRole[]>;
+  getBoardMemberRole(id: number): Promise<BoardMemberRole | undefined>;
+  getBoardMemberRolesByUser(userId: number): Promise<BoardMemberRole[]>;
+  createBoardMemberRole(role: InsertBoardMemberRole): Promise<BoardMemberRole>;
+  deactivateBoardMemberRole(id: number): Promise<BoardMemberRole | undefined>;
+  
   // Session store for auth
   sessionStore: session.SessionStore;
 }
@@ -72,6 +101,10 @@ export class MemStorage implements IStorage {
   private contacts: Map<number, Contact>;
   private newsletters: Map<number, Newsletter>;
   private notificationsItems: Map<number, Notification>;
+  private assessmentsItems: Map<number, Assessment>;
+  private assessmentQuestionsItems: Map<number, AssessmentQuestion>;
+  private userAssessmentsItems: Map<number, UserAssessment>;
+  private boardMemberRolesItems: Map<number, BoardMemberRole>;
   private currentId: { [key: string]: number };
   
   sessionStore: session.SessionStore;
@@ -86,6 +119,10 @@ export class MemStorage implements IStorage {
     this.contacts = new Map();
     this.newsletters = new Map();
     this.notificationsItems = new Map();
+    this.assessmentsItems = new Map();
+    this.assessmentQuestionsItems = new Map();
+    this.userAssessmentsItems = new Map();
+    this.boardMemberRolesItems = new Map();
     
     this.currentId = {
       users: 1,
@@ -96,7 +133,11 @@ export class MemStorage implements IStorage {
       maintenanceRequests: 1,
       contacts: 1,
       newsletters: 1,
-      notifications: 1
+      notifications: 1,
+      assessments: 1,
+      assessmentQuestions: 1,
+      userAssessments: 1,
+      boardMemberRoles: 1
     };
     
     this.sessionStore = new MemoryStore({
@@ -393,6 +434,147 @@ export class MemStorage implements IStorage {
     return this.notificationsItems.delete(id);
   }
   
+  // Assessment methods
+  async getAssessments(): Promise<Assessment[]> {
+    return Array.from(this.assessmentsItems.values());
+  }
+  
+  async getAssessmentsByType(moduleType: string): Promise<Assessment[]> {
+    return Array.from(this.assessmentsItems.values()).filter(
+      (assessment) => assessment.moduleType === moduleType
+    );
+  }
+  
+  async getAssessment(id: number): Promise<Assessment | undefined> {
+    return this.assessmentsItems.get(id);
+  }
+  
+  async createAssessment(insertAssessment: InsertAssessment): Promise<Assessment> {
+    const id = this.currentId.assessments++;
+    const now = new Date();
+    const assessment: Assessment = {
+      ...insertAssessment,
+      id,
+      createdAt: now,
+      updatedAt: now
+    };
+    this.assessmentsItems.set(id, assessment);
+    return assessment;
+  }
+  
+  // Assessment question methods
+  async getAssessmentQuestions(assessmentId: number): Promise<AssessmentQuestion[]> {
+    return Array.from(this.assessmentQuestionsItems.values()).filter(
+      (question) => question.assessmentId === assessmentId
+    );
+  }
+  
+  async getAssessmentQuestion(id: number): Promise<AssessmentQuestion | undefined> {
+    return this.assessmentQuestionsItems.get(id);
+  }
+  
+  async createAssessmentQuestion(insertQuestion: InsertAssessmentQuestion): Promise<AssessmentQuestion> {
+    const id = this.currentId.assessmentQuestions++;
+    const now = new Date();
+    const question: AssessmentQuestion = {
+      ...insertQuestion,
+      id,
+      createdAt: now
+    };
+    this.assessmentQuestionsItems.set(id, question);
+    return question;
+  }
+  
+  // User assessment methods
+  async getUserAssessments(userId: number): Promise<UserAssessment[]> {
+    return Array.from(this.userAssessmentsItems.values()).filter(
+      (userAssessment) => userAssessment.userId === userId
+    );
+  }
+  
+  async getUserAssessmentsByStatus(userId: number, status: string): Promise<UserAssessment[]> {
+    return Array.from(this.userAssessmentsItems.values()).filter(
+      (userAssessment) => userAssessment.userId === userId && userAssessment.status === status
+    );
+  }
+  
+  async getUserAssessment(id: number): Promise<UserAssessment | undefined> {
+    return this.userAssessmentsItems.get(id);
+  }
+  
+  async createUserAssessment(insertUserAssessment: InsertUserAssessment): Promise<UserAssessment> {
+    const id = this.currentId.userAssessments++;
+    const now = new Date();
+    const userAssessment: UserAssessment = {
+      ...insertUserAssessment,
+      id,
+      createdAt: now
+    };
+    this.userAssessmentsItems.set(id, userAssessment);
+    return userAssessment;
+  }
+  
+  async isUserQualified(userId: number): Promise<boolean> {
+    // A user is qualified if they have at least one active assessment with passed=true and status='current'
+    const userAssessments = await this.getUserAssessmentsByStatus(userId, 'current');
+    return userAssessments.some(assessment => assessment.passed);
+  }
+  
+  async getExpiredAssessments(userId: number): Promise<UserAssessment[]> {
+    const now = new Date();
+    return Array.from(this.userAssessmentsItems.values()).filter(
+      (userAssessment) => 
+        userAssessment.userId === userId && 
+        new Date(userAssessment.expiresAt) < now
+    );
+  }
+  
+  // Board member role methods
+  async getBoardMemberRoles(): Promise<BoardMemberRole[]> {
+    return Array.from(this.boardMemberRolesItems.values());
+  }
+  
+  async getActiveBoardMembers(): Promise<BoardMemberRole[]> {
+    return Array.from(this.boardMemberRolesItems.values()).filter(
+      (role) => role.isActive
+    );
+  }
+  
+  async getBoardMemberRole(id: number): Promise<BoardMemberRole | undefined> {
+    return this.boardMemberRolesItems.get(id);
+  }
+  
+  async getBoardMemberRolesByUser(userId: number): Promise<BoardMemberRole[]> {
+    return Array.from(this.boardMemberRolesItems.values()).filter(
+      (role) => role.userId === userId
+    );
+  }
+  
+  async createBoardMemberRole(insertRole: InsertBoardMemberRole): Promise<BoardMemberRole> {
+    const id = this.currentId.boardMemberRoles++;
+    const now = new Date();
+    const role: BoardMemberRole = {
+      ...insertRole,
+      id,
+      createdAt: now
+    };
+    this.boardMemberRolesItems.set(id, role);
+    return role;
+  }
+  
+  async deactivateBoardMemberRole(id: number): Promise<BoardMemberRole | undefined> {
+    const role = this.boardMemberRolesItems.get(id);
+    if (!role) return undefined;
+    
+    const updatedRole: BoardMemberRole = {
+      ...role,
+      isActive: false,
+      endDate: new Date()
+    };
+    this.boardMemberRolesItems.set(id, updatedRole);
+    return updatedRole;
+  }
+  
   // Seed data for development
   private async seedData() {
     // Seed documents
@@ -501,6 +683,120 @@ export class MemStorage implements IStorage {
       type: "maintenance",
       userId: 1,
       relatedId: 0
+    });
+    
+    // Seed assessments
+    const boardBasics = await this.createAssessment({
+      title: "Board Member Basic Certification",
+      description: "Essential knowledge for all board members including roles, responsibilities, and legal obligations.",
+      moduleType: "board",
+      passScore: 80,
+      isRequired: true,
+      validityPeriod: 12 // Valid for 1 year
+    });
+    
+    const njLaws = await this.createAssessment({
+      title: "New Jersey Condominium Act Compliance",
+      description: "Comprehensive assessment on the New Jersey Condominium Act (N.J.S.A. 46:8B-1 et. seq.) requirements and compliance.",
+      moduleType: "regulations",
+      passScore: 85,
+      isRequired: true,
+      validityPeriod: 24 // Valid for 2 years
+    });
+    
+    const financialManagement = await this.createAssessment({
+      title: "Financial Management for HOAs",
+      description: "Assessment covering budgeting, reserve funds, financial reporting, and audit procedures for HOAs.",
+      moduleType: "executive",
+      passScore: 75,
+      isRequired: true,
+      validityPeriod: 12 // Valid for 1 year
+    });
+    
+    // Seed assessment questions
+    await this.createAssessmentQuestion({
+      assessmentId: boardBasics.id,
+      questionText: "What is the primary fiduciary duty of a board member?",
+      questionType: "multiple_choice",
+      options: JSON.stringify([
+        "To increase property values",
+        "To act in the best interest of the association",
+        "To keep maintenance fees low",
+        "To organize social events"
+      ]),
+      correctAnswer: "To act in the best interest of the association",
+      points: 10
+    });
+    
+    await this.createAssessmentQuestion({
+      assessmentId: boardBasics.id,
+      questionText: "Board members can be held personally liable for their actions if they:",
+      questionType: "multiple_choice",
+      options: JSON.stringify([
+        "Act in good faith but make a mistake",
+        "Follow the advice of legal counsel",
+        "Act with gross negligence or deliberate misconduct",
+        "Vote against a popular amenity"
+      ]),
+      correctAnswer: "Act with gross negligence or deliberate misconduct",
+      points: 10
+    });
+    
+    await this.createAssessmentQuestion({
+      assessmentId: njLaws.id,
+      questionText: "According to the NJ Condominium Act, how much notice must be given before an annual meeting?",
+      questionType: "multiple_choice",
+      options: JSON.stringify([
+        "No notice required",
+        "At least 7 days",
+        "At least 10 days",
+        "At least 30 days"
+      ]),
+      correctAnswer: "At least 10 days",
+      points: 10
+    });
+    
+    await this.createAssessmentQuestion({
+      assessmentId: njLaws.id,
+      questionText: "The NJ Condominium Act requires associations to maintain which type of insurance?",
+      questionType: "multiple_choice",
+      options: JSON.stringify([
+        "Only liability insurance",
+        "Only property insurance",
+        "Both property and liability insurance",
+        "No insurance is required by law"
+      ]),
+      correctAnswer: "Both property and liability insurance",
+      points: 10
+    });
+    
+    // Create a board member role
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    
+    await this.createBoardMemberRole({
+      userId: 1,
+      role: "President",
+      startDate: sixMonthsAgo,
+      isActive: true
+    });
+    
+    // Create a completed assessment for the admin user
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    
+    const expirationDate = new Date(threeMonthsAgo);
+    expirationDate.setMonth(expirationDate.getMonth() + boardBasics.validityPeriod);
+    
+    await this.createUserAssessment({
+      userId: 1,
+      assessmentId: boardBasics.id,
+      score: 90,
+      passed: true,
+      completedAt: threeMonthsAgo,
+      expiresAt: expirationDate,
+      attemptCount: 1,
+      status: "current"
     });
   }
 }

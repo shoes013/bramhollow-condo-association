@@ -4,22 +4,24 @@ import {
   Wrench, 
   FileText, 
   Users,
-  ChevronRight
+  ChevronRight,
+  GraduationCap
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface DashboardSidebarProps {
-  activeTab: string;
-  setActiveTab: (tab: string) => void;
+  activeTab: "overview" | "payments" | "maintenance" | "documents" | "directory" | "training";
+  setActiveTab: (tab: "overview" | "payments" | "maintenance" | "documents" | "directory" | "training") => void;
 }
 
 const DashboardSidebar = ({ activeTab, setActiveTab }: DashboardSidebarProps) => {
   const navItems = [
-    { id: "overview", label: "Overview", icon: <Home className="mr-2 h-5 w-5" /> },
-    { id: "payments", label: "Payments", icon: <CreditCard className="mr-2 h-5 w-5" /> },
-    { id: "maintenance", label: "Maintenance Requests", icon: <Wrench className="mr-2 h-5 w-5" /> },
-    { id: "documents", label: "Documents", icon: <FileText className="mr-2 h-5 w-5" /> },
-    { id: "directory", label: "Member Directory", icon: <Users className="mr-2 h-5 w-5" /> }
+    { id: "overview" as const, label: "Overview", icon: <Home className="mr-2 h-5 w-5" /> },
+    { id: "payments" as const, label: "Payments", icon: <CreditCard className="mr-2 h-5 w-5" /> },
+    { id: "maintenance" as const, label: "Maintenance Requests", icon: <Wrench className="mr-2 h-5 w-5" /> },
+    { id: "documents" as const, label: "Documents", icon: <FileText className="mr-2 h-5 w-5" /> },
+    { id: "directory" as const, label: "Member Directory", icon: <Users className="mr-2 h-5 w-5" /> },
+    { id: "training" as const, label: "Training Hub", icon: <GraduationCap className="mr-2 h-5 w-5" /> }
   ];
   
   return (
@@ -38,7 +40,7 @@ const DashboardSidebar = ({ activeTab, setActiveTab }: DashboardSidebarProps) =>
                     ? "bg-secondary/20 font-medium" 
                     : ""
                 }`}
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => setActiveTab(item.id as "overview" | "payments" | "maintenance" | "documents" | "directory" | "training")}
               >
                 {item.icon}
                 <span>{item.label}</span>
